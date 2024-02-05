@@ -13,7 +13,7 @@ public class MediaPickerViewModel: ObservableObject {
             if !self.imageSelection.isEmpty {
                 self.loadTransferable(from: self.imageSelection)
             } else {
-                self.arrayAssets.append(PickerSelection(mediaType: .error, error: PickerError.emptyImage))
+                self.arrayAssets.append(PickerSelection(mediaType: .error, error: MediaPickerError.emptyMediaSelection))
             }
         }
     }
@@ -50,10 +50,12 @@ public class MediaPickerViewModel: ObservableObject {
     public init() { }
     public func openImagePicker(selection: Binding<[PhotosPickerItem]>,
                                 maxSelection: Int = 1,
+                                supportedFormat: [String] = [],
                                 maxImageSizeInKB: Int64 = .max,
                                 @ViewBuilder label: () -> some View) -> some View {
         var configuration = MediaPickerConfiguration()
         configuration.maxSelection = maxSelection
+        configuration.supportedFormated = supportedFormat
         configuration.maxImageSizeInKB = maxImageSizeInKB
         configuration.filters = .images
         return openMediaPicker(selection: selection, configuration: configuration) {
@@ -62,12 +64,14 @@ public class MediaPickerViewModel: ObservableObject {
     }
     public func openVideoPicker(selection: Binding<[PhotosPickerItem]>,
                                 maxSelection: Int = 1,
+                                supportedFormat: [String] = [],
                                 videoCompressionQuality: VideoCompressionQuality = .none,
                                 maxVideoSizeInKB: Int64 = .max,
                                 preCompressionSizeValidation: Bool = false,
                                 @ViewBuilder label: () -> some View) -> some View {
         var configuration = MediaPickerConfiguration()
         configuration.maxSelection = maxSelection
+        configuration.supportedFormated = supportedFormat
         configuration.maxVideoSizeInKB = maxVideoSizeInKB
         configuration.preCompressionSizeValidation = preCompressionSizeValidation
         configuration.filters = .videos
@@ -78,6 +82,7 @@ public class MediaPickerViewModel: ObservableObject {
     public func openMediaPicker(selection: Binding<[PhotosPickerItem]>,
                                 filters: PHPickerFilter = .any(of: [.images, .videos]),
                                 maxSelection: Int = 5,
+                                supportedFormat: [String] = [],
                                 maxImageSizeInKB: Int64 = .max,
                                 videoCompressionQuality: VideoCompressionQuality = .none,
                                 maxVideoSizeInKB: Int64 = .max,
@@ -85,6 +90,7 @@ public class MediaPickerViewModel: ObservableObject {
                                 @ViewBuilder label: () -> some View) -> some View {
         var configuration = MediaPickerConfiguration()
         configuration.maxSelection = maxSelection
+        configuration.supportedFormated = supportedFormat
         configuration.filters = filters
         configuration.maxImageSizeInKB = maxImageSizeInKB
         configuration.maxVideoSizeInKB = maxVideoSizeInKB
@@ -116,15 +122,21 @@ public class MediaPickerViewModel: ObservableObject {
                 progress = selection.loadTransferable(type: Photo.self) { result in
                     switch result {
                     case .success(let photo?):
-                        let size = FileManager.default.sizeOfFile(atPath: photo.url.path())
-                        if size <= self.configuration.maxImageSizeInKB {
-                            arrayAssets.append(PickerSelection(url: photo.url, mediaType: .image, mimeType: utType.preferredMIMEType))
+                        let supportedFormated = self.configuration.supportedFormated
+                        if supportedFormated.isEmpty || supportedFormated.map({photo.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
+                            let size = FileManager.default.sizeOfFile(atPath: photo.url.path())
+                            if size <= self.configuration.maxImageSizeInKB {
+                                arrayAssets.append(PickerSelection(url: photo.url, mediaType: .image, mimeType: utType.preferredMIMEType))
+                            } else {
+                                let asset = PickerSelection(mediaType: .error, error: MediaPickerError.sizeExceeds(size: size))
+                                arrayAssets.append(asset)
+                            }
                         } else {
-                            let asset = PickerSelection(mediaType: .error, error: PickerError.sizeExceeds(size: size))
+                            let asset = PickerSelection(mediaType: .error, error: MediaPickerError.unsupportedFormat)
                             arrayAssets.append(asset)
                         }
                     case .success(nil):
-                        let asset = PickerSelection(mediaType: .error, error: PickerError.tranferFailed)
+                        let asset = PickerSelection(mediaType: .error, error: MediaPickerError.tranferFailed)
                         arrayAssets.append(asset)
                     case .failure(let error):
                         let asset = PickerSelection(mediaType: .error, error: error)
@@ -136,35 +148,42 @@ public class MediaPickerViewModel: ObservableObject {
                 progress = selection.loadTransferable(type: Movie.self) { result in
                     switch result {
                     case .success(let movie?):
-                        let compression = self.configuration.videoCompressionQuality
-                        if self.configuration.preCompressionSizeValidation {
-                            let asset = self.checkSize(at: movie.url, mediaType: .video, utType: utType)
-                            if asset.mediaType == .error {
+                        let supportedFormated = self.configuration.supportedFormated
+                        if supportedFormated.isEmpty || supportedFormated.map({movie.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
+                            let compression = self.configuration.videoCompressionQuality
+                            if self.configuration.preCompressionSizeValidation {
+                                let asset = self.checkSize(at: movie.url, mediaType: .video, utType: utType)
+                                if asset.mediaType == .error {
+                                    arrayAssets.append(asset)
+                                    group.leave()
+                                    break
+                                }
+                            }
+                            if compression == .none {
+                                let asset = self.checkSize(at: movie.url, mediaType: .video, utType: utType)
                                 arrayAssets.append(asset)
                                 group.leave()
-                                break
+                            } else {
+                                self.compressVideo(sourceURL: movie.url) { compressedVideoURL in
+                                    var asset: PickerSelection
+                                    if !self.configuration.preCompressionSizeValidation {
+                                        asset = self.checkSize(at: compressedVideoURL, mediaType: .video, utType: utType)
+                                    } else {
+                                        asset = PickerSelection(url: compressedVideoURL,
+                                                                mediaType: .video,
+                                                                mimeType: utType.preferredMIMEType)
+                                    }
+                                    arrayAssets.append(asset)
+                                    group.leave()
+                                }
                             }
-                        }
-                        if compression == .none {
-                            let asset = self.checkSize(at: movie.url, mediaType: .video, utType: utType)
+                        } else {
+                            let asset = PickerSelection(mediaType: .error, error: MediaPickerError.unsupportedFormat)
                             arrayAssets.append(asset)
                             group.leave()
-                        } else {
-                            self.compressVideo(sourceURL: movie.url) { compressedVideoURL in
-                                var asset: PickerSelection
-                                if !self.configuration.preCompressionSizeValidation {
-                                    asset = self.checkSize(at: compressedVideoURL, mediaType: .video, utType: utType)
-                                } else {
-                                    asset = PickerSelection(url: compressedVideoURL,
-                                                            mediaType: .video,
-                                                            mimeType: utType.preferredMIMEType)
-                                }
-                                arrayAssets.append(asset)
-                                group.leave()
-                            }
                         }
                     case .success(nil):
-                        let asset = PickerSelection(mediaType: .error, error: PickerError.tranferFailed)
+                        let asset = PickerSelection(mediaType: .error, error: MediaPickerError.tranferFailed)
                         arrayAssets.append(asset)
                         group.leave()
                     case .failure(let error):
@@ -174,7 +193,7 @@ public class MediaPickerViewModel: ObservableObject {
                     }
                 }
             } else {
-                let asset = PickerSelection(mediaType: .error, error: PickerError.undeterminedMedia)
+                let asset = PickerSelection(mediaType: .error, error: MediaPickerError.undeterminedMedia)
                 arrayAssets.append(asset)
                 group.leave()
             }
@@ -193,7 +212,7 @@ public class MediaPickerViewModel: ObservableObject {
                                    mediaType: mediaType,
                                    mimeType: utType.preferredMIMEType)
         } else {
-            let asset = PickerSelection(mediaType: .error, error: PickerError.sizeExceeds(size: size))
+            let asset = PickerSelection(mediaType: .error, error: MediaPickerError.sizeExceeds(size: size))
             return asset
         }
     }
