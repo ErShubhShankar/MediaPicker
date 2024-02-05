@@ -25,7 +25,7 @@ public class MediaPickerViewModel: ObservableObject {
             } importing: { received in
                 var videoName = "\(Date().timeIntervalSince1970)-"
                 videoName += received.file.lastPathComponent
-                let copy = URL.documentsDirectory.appending(path: videoName)
+                let copy = FileManager.default.temporaryDirectory.appending(path: videoName)
                 try FileManager.default.copyItem(at: received.file, to: copy)
                 return Self.init(url: copy)
             }
@@ -39,7 +39,7 @@ public class MediaPickerViewModel: ObservableObject {
             } importing: { received in
                 var imageName = "\(Date().timeIntervalSince1970)-"
                 imageName += received.file.lastPathComponent
-                let copy = URL.documentsDirectory.appending(path: imageName)
+                let copy = FileManager.default.temporaryDirectory.appending(path: imageName)
                 try FileManager.default.copyItem(at: received.file, to: copy)
                 return Self.init(url: copy)
             }
@@ -117,13 +117,14 @@ public class MediaPickerViewModel: ObservableObject {
         var arrayAssets: [PickerSelection] = []
         var progress = Progress()
         for selection in imageSelection {
+            let supportedFormat = configuration.supportedFormat.map({$0.lowercased()})
             group.enter()
             if let utType = selection.supportedContentTypes.first(where: {$0.conforms(to: .image)}) {
                 progress = selection.loadTransferable(type: Photo.self) { result in
                     switch result {
                     case .success(let photo?):
-                        let supportedFormat = self.configuration.supportedFormat
-                        if supportedFormat.isEmpty || supportedFormat.map({photo.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
+                        let fileEx = utType.preferredFilenameExtension?.lowercased() ?? "-none"
+                        if supportedFormat.isEmpty || supportedFormat.contains(fileEx) {
                             let size = FileManager.default.sizeOfFile(atPath: photo.url.path())
                             if size <= self.configuration.maxImageSizeInKB {
                                 arrayAssets.append(PickerSelection(url: photo.url, mediaType: .image, mimeType: utType.preferredMIMEType))
@@ -148,8 +149,8 @@ public class MediaPickerViewModel: ObservableObject {
                 progress = selection.loadTransferable(type: Movie.self) { result in
                     switch result {
                     case .success(let movie?):
-                        let supportedFormat = self.configuration.supportedFormat
-                        if supportedFormat.isEmpty || supportedFormat.map({movie.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
+                        let fileEx = utType.preferredFilenameExtension?.lowercased() ?? "-none"
+                        if supportedFormat.isEmpty || supportedFormat.contains(fileEx) {
                             let compression = self.configuration.videoCompressionQuality
                             if self.configuration.preCompressionSizeValidation {
                                 let asset = self.checkSize(at: movie.url, mediaType: .video, utType: utType)
@@ -219,8 +220,9 @@ public class MediaPickerViewModel: ObservableObject {
     public func compressVideo(sourceURL: URL, completion: @escaping ((URL) -> Void)) {
         let asset = AVAsset(url: sourceURL)
         let exportSession = AVAssetExportSession(asset: asset, presetName: configuration.videoCompressionQuality.value)
-        let videoName = "Video-\(Date().timeIntervalSince1970).mp4"
-        let destinationURL = URL.documentsDirectory.appending(path: videoName)
+        var videoName = "Compressed-\(Date().timeIntervalSince1970)-"
+        videoName += sourceURL.lastPathComponent
+        let destinationURL = FileManager.default.temporaryDirectory.appending(path: videoName)
         exportSession?.outputURL = destinationURL
         exportSession?.outputFileType = .mp4
         exportSession?.shouldOptimizeForNetworkUse = true
