@@ -16,7 +16,6 @@ public struct MediaPickerConfiguration {
     public var maxVideoSizeInKB: Int64 = .max
     public var filters: PHPickerFilter = .any(of: [.images])
     public var preCompressionSizeValidation = false
-    public var supportedFormated: [String] = []
     public init() {}
 }
 public struct PickerSelection: Identifiable {
@@ -31,12 +30,11 @@ public enum PickerSelectionType {
     case image
     case error
 }
-public enum MediaPickerError: Error {
+public enum PickerError: Error {
     case importFailed
-    case emptyMediaSelection
+    case emptyImage
     case tranferFailed
     case undeterminedMedia
-    case unsupportedFormat
     case sizeExceeds(size: Int64)
 }
 
