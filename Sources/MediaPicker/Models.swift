@@ -36,7 +36,7 @@ public enum MediaPickerError: Error {
     case emptyMediaSelection
     case tranferFailed
     case undeterminedMedia
-    case sizeExceeds(size: Int64)
+    case sizeExceeds(size: KiloByte)
     case unsupportedFormat
 }
 

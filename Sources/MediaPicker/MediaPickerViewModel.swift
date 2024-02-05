@@ -7,13 +7,13 @@ import CoreTransferable
 
 public class MediaPickerViewModel: ObservableObject {
     private var configuration = MediaPickerConfiguration()
-    @Published public var arrayAssets: [PickerSelection] = []
+    @Published public var arrayPickedAssets: [PickerSelection] = []
     @Published public var imageSelection: [PhotosPickerItem] = [] {
         didSet {
-            if !self.imageSelection.isEmpty {
-                self.loadTransferable(from: self.imageSelection)
+            if !imageSelection.isEmpty {
+                loadTransferable(from: self.imageSelection)
             } else {
-                self.arrayAssets.append(PickerSelection(mediaType: .error, error: MediaPickerError.emptyMediaSelection))
+                arrayPickedAssets = []
             }
         }
     }
@@ -199,7 +199,7 @@ public class MediaPickerViewModel: ObservableObject {
             }
         }
         group.notify(queue: .main) {
-            self.arrayAssets = arrayAssets
+            self.arrayPickedAssets = arrayAssets
         }
         return progress
     }
