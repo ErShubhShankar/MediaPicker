@@ -55,7 +55,7 @@ public class MediaPickerViewModel: ObservableObject {
                                 @ViewBuilder label: () -> some View) -> some View {
         var configuration = MediaPickerConfiguration()
         configuration.maxSelection = maxSelection
-        configuration.supportedFormated = supportedFormat
+        configuration.supportedFormat = supportedFormat
         configuration.maxImageSizeInKB = maxImageSizeInKB
         configuration.filters = .images
         return openMediaPicker(selection: selection, configuration: configuration) {
@@ -71,7 +71,7 @@ public class MediaPickerViewModel: ObservableObject {
                                 @ViewBuilder label: () -> some View) -> some View {
         var configuration = MediaPickerConfiguration()
         configuration.maxSelection = maxSelection
-        configuration.supportedFormated = supportedFormat
+        configuration.supportedFormat = supportedFormat
         configuration.maxVideoSizeInKB = maxVideoSizeInKB
         configuration.preCompressionSizeValidation = preCompressionSizeValidation
         configuration.filters = .videos
@@ -90,7 +90,7 @@ public class MediaPickerViewModel: ObservableObject {
                                 @ViewBuilder label: () -> some View) -> some View {
         var configuration = MediaPickerConfiguration()
         configuration.maxSelection = maxSelection
-        configuration.supportedFormated = supportedFormat
+        configuration.supportedFormat = supportedFormat
         configuration.filters = filters
         configuration.maxImageSizeInKB = maxImageSizeInKB
         configuration.maxVideoSizeInKB = maxVideoSizeInKB
@@ -122,8 +122,8 @@ public class MediaPickerViewModel: ObservableObject {
                 progress = selection.loadTransferable(type: Photo.self) { result in
                     switch result {
                     case .success(let photo?):
-                        let supportedFormated = self.configuration.supportedFormated
-                        if supportedFormated.isEmpty || supportedFormated.map({photo.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
+                        let supportedFormat = self.configuration.supportedFormat
+                        if supportedFormat.isEmpty || supportedFormat.map({photo.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
                             let size = FileManager.default.sizeOfFile(atPath: photo.url.path())
                             if size <= self.configuration.maxImageSizeInKB {
                                 arrayAssets.append(PickerSelection(url: photo.url, mediaType: .image, mimeType: utType.preferredMIMEType))
@@ -148,8 +148,8 @@ public class MediaPickerViewModel: ObservableObject {
                 progress = selection.loadTransferable(type: Movie.self) { result in
                     switch result {
                     case .success(let movie?):
-                        let supportedFormated = self.configuration.supportedFormated
-                        if supportedFormated.isEmpty || supportedFormated.map({movie.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
+                        let supportedFormat = self.configuration.supportedFormat
+                        if supportedFormat.isEmpty || supportedFormat.map({movie.url.path().lowercased().hasSuffix($0.lowercased())}).contains(true) {
                             let compression = self.configuration.videoCompressionQuality
                             if self.configuration.preCompressionSizeValidation {
                                 let asset = self.checkSize(at: movie.url, mediaType: .video, utType: utType)
@@ -216,7 +216,7 @@ public class MediaPickerViewModel: ObservableObject {
             return asset
         }
     }
-    private func compressVideo(sourceURL: URL, completion: @escaping ((URL) -> Void)) {
+    public func compressVideo(sourceURL: URL, completion: @escaping ((URL) -> Void)) {
         let asset = AVAsset(url: sourceURL)
         let exportSession = AVAssetExportSession(asset: asset, presetName: configuration.videoCompressionQuality.value)
         let videoName = "Video-\(Date().timeIntervalSince1970).mp4"

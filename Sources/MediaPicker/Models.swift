@@ -11,6 +11,7 @@ import PhotosUI
 public typealias KiloByte = Int64
 public struct MediaPickerConfiguration {
     public var maxSelection: Int = 1
+    public var supportedFormat: [String] = []
     public var videoCompressionQuality: VideoCompressionQuality = .none
     public var maxImageSizeInKB: Int64 = .max
     public var maxVideoSizeInKB: Int64 = .max
@@ -30,12 +31,13 @@ public enum PickerSelectionType {
     case image
     case error
 }
-public enum PickerError: Error {
+public enum MediaPickerError: Error {
     case importFailed
-    case emptyImage
+    case emptyMediaSelection
     case tranferFailed
     case undeterminedMedia
     case sizeExceeds(size: Int64)
+    case unsupportedFormat
 }
 
 public enum VideoCompressionQuality {
